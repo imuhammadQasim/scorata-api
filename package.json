@@ -1,0 +1,33 @@
+{
+  "name": "scorata-api",
+  "version": "1.0.0",
+  "description": "CLI that pulls newly registered businesses from US state Socrata (SODA API) open-data portals for B2B lead generation.",
+  "type": "module",
+  "main": "fetch-registrations.js",
+  "bin": {
+    "fetch-registrations": "./fetch-registrations.js"
+  },
+  "scripts": {
+    "start": "node fetch-registrations.js",
+    "sample": "node fetch-registrations.js --sample"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "socrata",
+    "soda-api",
+    "open-data",
+    "business-registrations",
+    "leads"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "csv-stringify": "^6.5.0",
+    "dotenv": "^16.4.5"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.10.0"
+  }
+}
