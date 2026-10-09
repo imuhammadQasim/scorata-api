@@ -111,6 +111,9 @@ function buildWhereClause({ dateCol, statusCol, keywordFragment }, sinceIso, act
 
 async function processState(stateKey, opts, token) {
   const { domain, datasetId, overrides = {} } = STATES[stateKey];
+  if (!domain || !datasetId) {
+    throw new Error(STATES[stateKey].unavailableReason);
+  }
   console.log(`\n=== ${stateKey} (${domain}/${datasetId}) ===`);
 
   const columns = await fetchDatasetMetadata(domain, datasetId, token);
@@ -172,14 +175,18 @@ async function main() {
   }
 
   const results = [];
+  const failedStates = [];
   for (const stateKey of opts.states) {
     try {
       const result = await processState(stateKey, opts, token);
       results.push(result);
     } catch (err) {
       console.error(`\n[error] ${stateKey}: ${err.message}`);
+      failedStates.push(stateKey);
     }
   }
+
+  if (failedStates.length > 0) process.exitCode = 1;
 
   if (opts.sample) {
     for (const r of results) {

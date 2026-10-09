@@ -25,6 +25,19 @@ record. If you need more fields (street address, registered agent, status,
 etc.) later, they're one line to add back in `src/normalize.js` and
 `src/schema.js` — the raw API rows already carry them.
 
+## State coverage
+
+All 50 state codes are accepted by the CLI, but a state is fetchable only after
+a compatible Socrata business-registration dataset has been verified. The
+currently configured states are **CO, CT, NY, and PA**. The remaining states
+are listed in `config.js` with `domain` and `datasetId` set to `null`; selecting
+one prints its unavailable reason instead of making a request with a guessed
+dataset ID. This project only supports Socrata endpoints, so the list does not
+mean every state is currently covered.
+
+See [API_RESPONSE.md](./API_RESPONSE.md) for one raw Socrata row and the
+corresponding normalized result produced by this project.
+
 ## Setup
 
 ```bash
