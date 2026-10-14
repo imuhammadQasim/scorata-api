@@ -6,7 +6,10 @@
 // Unverified states remain listed with null domain/datasetId; do not guess IDs.
 // overrides = optional manual column-mapping overrides. Only needed when the
 //             auto-detector in src/schema.js picks the wrong column. Valid
-//             keys: dateCol, idCol, nameCol, typeCol, statusCol, cityCol, zipCol.
+//             keys: dateCol, idCol, nameCol, typeCol, statusCol, cityCol, zipCol,
+//             addressCol, address2Col, addressStateCol, agentFirstCol,
+//             agentLastCol, agentOrgCol, agentNameCol, agentAddressCol.
+// entityTypes = optional exact list of entity-type values to keep (see CO).
 //
 // Do NOT guess dataset IDs. To find one for a new state:
 //   1. Query the Socrata Discovery API:
@@ -43,6 +46,12 @@ export const STATES = {
     // "Business Entities in Colorado" — verified via metadata + sample rows.
     // No manual overrides needed: entityformdate/entityid/entityname/entitytype/
     // entitystatus/principalcity/principalzipcode all auto-detect.
+    //
+    // entityTypes (optional, any state): exact entity-type values to keep,
+    //   replacing the loose global ENTITY_TYPES_KEEP. Colorado uses short
+    //   codes: "DLLC" = an LLC formed in Colorado, while "FLLC" (formed in
+    //   another state) would slip through the loose "LLC" match.
+    entityTypes: ["DLLC"],
   },
   NY: {
     domain: "data.ny.gov",
@@ -79,19 +88,41 @@ export const DAYS_BACK = 30;
 // Empty array = keep all names (no include filter applied).
 export const KEYWORDS_INCLUDE = [];
 
-// Case-insensitive substring match against business_name; any match excludes the row.
-export const KEYWORDS_EXCLUDE = [
-  "holdings",
-  "capital",
-  "trust",
-  "realty",
-  "investment",
+// Whole-word, case-insensitive match against business_name; any match excludes
+// the row. Use this for your own one-off exclusions. The built-in junk rules
+// below run as well.
+export const KEYWORDS_EXCLUDE = [];
+
+// --- Junk rules (src/filters.js) ----------------------------------------
+// Each list is matched as whole words (or phrases), case-insensitively.
+
+// Companies that only own or hold something (a house, land, an investment).
+// They have no customers, so they never need a website or a phone line.
+export const PROPERTY_HOLDING_WORDS = [
+  "holding", "holdings", "capital", "trust", "realty", "real estate",
+  "investment", "investments", "investor", "investors", "invest",
+  "property", "properties", "propco", "opco", "rental", "rentals",
+  "acres", "apartment", "apartments", "condo", "condos", "condominium",
+  "condominiums", "townhome", "townhomes", "townhouse", "duplex", "duplexes",
+  "hoa", "homeowners", "association", "estates",
+  "fund", "funds", "funding", "lender", "1031", "spv", "spe", "gp", "lp",
+  "member", "owner", "manager", "ventures", "venture", "acquisition",
+  "acquisitions", "equity", "assets", "portfolio",
+  "family llc", "family partners", "family office", "family enterprises",
+];
+
+// Online-reseller and drop-shipping shells, registered by the dozen with a
+// made-up name and a registered agent's address.
+export const RESELLER_SHELL_WORDS = [
+  "trading", "commerce", "ecommerce", "e-commerce", "ecom", "ecoms",
+  "impex", "mart", "shopify", "dropship", "dropshipping",
 ];
 
 // Loose (case-insensitive substring, either direction) match against the
-// state's entity-type field. NOTE: entity-type formatting varies wildly by
-// state (e.g. Colorado uses abbreviation codes like "DLLC"/"DPC", New York
-// spells it out as "DOMESTIC LIMITED LIABILITY COMPANY"/"DOMESTIC BUSINESS
-// CORPORATION"). Verify with --sample and extend this list per your needs;
-// see README "Known gotchas" for concrete examples of what does and doesn't match.
-export const ENTITY_TYPES_KEEP = ["LLC", "Corporation", "INC"];
+// state's entity-type field, for states without their own `entityTypes` list.
+// NOTE: entity-type formatting varies wildly by state (e.g. Colorado uses
+// abbreviation codes like "DLLC"/"DPC", New York spells it out as "DOMESTIC
+// LIMITED LIABILITY COMPANY"/"DOMESTIC BUSINESS CORPORATION"). Verify with
+// --sample and extend this list per your needs; see README "Known gotchas".
+// Any type containing "FOREIGN" (formed in another state) is always dropped.
+export const ENTITY_TYPES_KEEP = ["LLC", "Limited Liability", "Corporation", "INC"];

@@ -1,12 +1,28 @@
 # scorata-api
 
 CLI that pulls newly registered businesses from US state open-data portals
-(Socrata / SODA API) into a normalized CSV, for later enrichment and B2B
-outreach. Uses only official open-data endpoints — no scraping.
+(Socrata / SODA API) into a normalized CSV, filters out shells and junk
+filings, for B2B outreach.
 
 ## What it outputs
 
-For each row it writes:
+### The CSV: a call sheet
+
+`output/new_businesses_YYYY-MM-DD.csv` holds only what you need while
+searching and calling, and opens directly in Excel or Google Sheets:
+
+| column | meaning |
+|---|---|
+| `business_name` | registered business name |
+| `google_search` | a clickable **Search** link: Google for the name + state + zip |
+| `ask_for` | the registered agent when it is a person (usually the owner) |
+| `phone`, `website`, `call_result`, `notes` | empty, for you to fill in |
+| `city`, `state`, `zip` | where it is registered |
+| `formed_on` | formation date |
+
+### The SQLite database: every column
+
+With `--sqlite`, each business is stored with all of these:
 
 | column | meaning |
 |---|---|
@@ -14,16 +30,38 @@ For each row it writes:
 | `entity_id` | the state's unique entity/filing ID |
 | `business_name` | registered business name |
 | `entity_type` | the state's raw entity-type value (e.g. `DLLC`, `DOMESTIC BUSINESS CORPORATION`) |
+| `entity_status` | the state's status value (e.g. `Good Standing`) |
 | `formation_date` | registration/formation date, `YYYY-MM-DD` |
+| `address` | street address, from the same address block as the city and zip |
 | `city` | city from the entity's on-file address |
+| `address_state` | state of that address |
 | `zip` | zip from the entity's on-file address |
+| `agent_name` | registered agent: a person's name, or the agent company's |
+| `agent_type` | `person` or `company`. A person is usually the owner: ask for them by name |
+| `virtual_address` | `yes` when the address on file is the agent company's office, so it says nothing about where the business is |
 | `source_domain` | which Socrata domain the row came from |
 
-This is intentionally a lean, lookup-ready schema (enough to find the
-business online or in a state registry search) rather than a full filing
-record. If you need more fields (street address, registered agent, status,
-etc.) later, they're one line to add back in `src/normalize.js` and
-`src/schema.js` — the raw API rows already carry them.
+Columns a state's dataset doesn't publish are left empty (e.g. Connecticut
+and Pennsylvania list no registered agent). Run `--sample` to see what each
+state provides.
+
+## Filters
+
+Every fetched row passes through `rejectReason()` in `src/filters.js`, and
+the run prints how many rows each rule dropped (`dropped by filter: ...`).
+
+| reason | drops |
+|---|---|
+| `entity_type` | any type containing "foreign" (formed in another state) or "nonprofit"; then a state's own `entityTypes` list if it has one (Colorado keeps only `DLLC`), otherwise the loose `ENTITY_TYPES_KEEP` |
+| `closed` | dissolved, withdrawn or delinquent entities |
+| `out_of_state` | an address in another state, or with no state given, a ZIP outside the state's range (`src/states.js`); catches the out-of-state filing mills |
+| `property_address` | a street address or bare number as the name (`1149 S Logan LLC`, `1590 LLC`) |
+| `property_holding` | holding, property, investment, fund and similar shells (`PROPERTY_HOLDING_WORDS`), except property *service* businesses |
+| `reseller_shell` | trading / ecommerce / mart shells (`RESELLER_SHELL_WORDS`) |
+| `junk_name` | bulk-filed pinyin names, keyboard mashes, `... LLC CO` mill filings |
+| `keyword_include` / `keyword_exclude` | your own `KEYWORDS_INCLUDE` / `KEYWORDS_EXCLUDE` |
+
+All word lists live in `config.js`.
 
 ## State coverage
 
@@ -122,7 +160,13 @@ active-only snapshots, etc.) where only one is actually useful.
    If a field mapped to `(not found)` or to the wrong column (compare against
    the metadata from step 2), add a manual `overrides` entry for that state
    (valid keys: `dateCol`, `idCol`, `nameCol`, `typeCol`, `statusCol`,
-   `cityCol`, `zipCol`).
+   `cityCol`, `zipCol`, `addressCol`, `address2Col`, `addressStateCol`,
+   `agentFirstCol`, `agentLastCol`, `agentOrgCol`, `agentNameCol`,
+   `agentAddressCol`). The address columns are found next to the city
+   column (`principalcity` → `principaladdress1`, `principalstate`), so
+   overriding `cityCol` usually fixes them too.
+   If the state's entity types need an exact list (like Colorado's `DLLC`),
+   add `entityTypes: [...]` to its entry.
 
 5. Once the sample row looks right, run a full fetch and sanity-check row
    counts and the date range in the summary output.
@@ -199,6 +243,5 @@ active-only snapshots, etc.) where only one is actually useful.
 
 ## Out of scope
 
-This tool only produces the lead list. It does not scrape websites, send
-emails, or do phone/email enrichment — that's a separate, later step (e.g.
-Google Places / Hunter / Apollo).
+This tool only produces the filtered lead list. It does not scrape websites,
+send emails, or do phone/email enrichment.

@@ -5,7 +5,7 @@ import { STATES, DAYS_BACK } from "./config.js";
 import { fetchDatasetMetadata, fetchAllRows } from "./src/socrata.js";
 import { detectSchema, assertRequiredColumns, printMapping } from "./src/schema.js";
 import { normalizeRow } from "./src/normalize.js";
-import { passesFilters, buildKeywordWhereFragment } from "./src/filters.js";
+import { rejectReason, buildKeywordWhereFragment } from "./src/filters.js";
 import { writeCsv } from "./src/csvWriter.js";
 import { upsertToSqlite } from "./src/sqliteStore.js";
 
@@ -155,11 +155,21 @@ async function processState(stateKey, opts, token) {
   }
   const deduped = [...seen.values()];
 
-  const filtered = deduped.filter(passesFilters);
+  const filtered = [];
+  const rejected = {};
+  for (const row of deduped) {
+    const reason = rejectReason(row);
+    if (reason) rejected[reason] = (rejected[reason] || 0) + 1;
+    else filtered.push(row);
+  }
 
   console.log(
     `  rows fetched: ${rawRows.length} | duplicates removed: ${duplicates} | rows after filters: ${filtered.length}`
   );
+  const reasons = Object.entries(rejected).sort((a, b) => b[1] - a[1]);
+  if (reasons.length > 0) {
+    console.log(`  dropped by filter: ${reasons.map(([r, n]) => `${r} ${n}`).join(", ")}`);
+  }
 
   return { stateKey, rawCount: rawRows.length, duplicates, filtered };
 }

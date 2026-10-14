@@ -71,6 +71,35 @@ export function detectSchema(columns, overrides = {}) {
       { exclude: nonPersonExclude }
     );
 
+  // Street address and its state come from the same address block as the
+  // city: "principalcity" -> "principaladdress1"/"principalstate",
+  // "dos_process_city" -> "dos_process_address_1"/"dos_process_state",
+  // "billingcity" -> "billingstreet"/"billingstate", "city" -> "address_line1"/"state".
+  const names = new Set(columns.map((c) => c.fieldName));
+  const prefix = cityCol ? cityCol.replace(/city$/i, "") : "";
+  const firstExisting = (candidates) => candidates.find((c) => names.has(c));
+
+  const addressCol =
+    overrides.addressCol ||
+    firstExisting(
+      ["address1", "address_1", "address_line1", "address_line_1", "street", "address"].map((s) => prefix + s)
+    );
+  const address2Col =
+    overrides.address2Col ||
+    firstExisting(["address2", "address_2", "address_line2", "address_line_2", "_unit", "unit"].map((s) => prefix + s));
+  const addressStateCol = overrides.addressStateCol || firstExisting([`${prefix}state`]);
+
+  // Registered agent: either split into first/last/organization (Colorado)
+  // or one name field (New York). Officer names (Pennsylvania) are not agents.
+  const agentFirstCol = overrides.agentFirstCol || findColumn(columns, [/agent.*first/i]);
+  const agentLastCol = overrides.agentLastCol || findColumn(columns, [/agent.*last/i]);
+  const agentOrgCol =
+    overrides.agentOrgCol || findColumn(columns, [/agent.*(organi[sz]ation|company|entity)/i]);
+  const agentNameCol = overrides.agentNameCol || findColumn(columns, [/^(registered_?)?agent_?name$/i]);
+  const agentAddressCol =
+    overrides.agentAddressCol ||
+    findColumn(columns, [/agent.*address.*1$/i, /agent.*address$/i], { exclude: /mail/i });
+
   return {
     dateCol,
     idCol,
@@ -79,6 +108,14 @@ export function detectSchema(columns, overrides = {}) {
     statusCol,
     cityCol,
     zipCol,
+    addressCol,
+    address2Col,
+    addressStateCol,
+    agentFirstCol,
+    agentLastCol,
+    agentOrgCol,
+    agentNameCol,
+    agentAddressCol,
   };
 }
 

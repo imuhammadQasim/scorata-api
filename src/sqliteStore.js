@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { OUTPUT_COLUMNS } from "./normalize.js";
 
 /**
@@ -16,6 +18,7 @@ export async function upsertToSqlite(rows, dbPath) {
     );
   }
 
+  fs.mkdirSync(path.dirname(path.resolve(dbPath)), { recursive: true });
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
 
@@ -27,6 +30,12 @@ export async function upsertToSqlite(rows, dbPath) {
       PRIMARY KEY (state, entity_id)
     );
   `);
+
+  // A database made before a column was added to OUTPUT_COLUMNS gets it now.
+  const existing = new Set(db.prepare("PRAGMA table_info(businesses)").all().map((c) => c.name));
+  for (const col of OUTPUT_COLUMNS) {
+    if (!existing.has(col)) db.exec(`ALTER TABLE businesses ADD COLUMN ${col} TEXT`);
+  }
 
   const insert = db.prepare(`
     INSERT OR IGNORE INTO businesses (${OUTPUT_COLUMNS.join(", ")})
